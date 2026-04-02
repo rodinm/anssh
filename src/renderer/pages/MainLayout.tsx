@@ -50,6 +50,7 @@ interface Props {
   onCloseAllTabs: () => void;
   onCloseTabsToRight: (tabId: string) => void;
   onCloseTabsToLeft: (tabId: string) => void;
+  onCloseTabsForHostIds: (hostIds: string[]) => void;
   onUpdateTab: (id: string, updates: Partial<Tab>) => void;
   onRefreshData: () => Promise<void>;
 }
@@ -76,6 +77,7 @@ export function MainLayout({
   onCloseAllTabs,
   onCloseTabsToRight,
   onCloseTabsToLeft,
+  onCloseTabsForHostIds,
   onUpdateTab,
   onRefreshData,
 }: Props) {
@@ -98,6 +100,16 @@ export function MainLayout({
     }
   }
 
+  function openTabsForHosts(hostList: Host[], type: 'terminal' | 'sftp') {
+    for (const h of hostList) {
+      onOpenTab(h, type);
+    }
+  }
+
+  function closeTabsForHosts(hostList: Host[]) {
+    onCloseTabsForHostIds(hostList.map((h) => h.id));
+  }
+
   return (
     <div className="flex h-full">
       <Sidebar
@@ -114,6 +126,8 @@ export function MainLayout({
         onEditCredential={(cred) => setModal({ type: 'credential', credential: cred })}
         onRefreshData={onRefreshData}
         onOpenDevOps={() => setModal({ type: 'devops' })}
+        onOpenTabsForHosts={openTabsForHosts}
+        onCloseTabsForHosts={closeTabsForHosts}
       />
 
       <div className="flex-1 flex flex-col min-w-0">

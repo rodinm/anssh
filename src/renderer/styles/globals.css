@@ -15,6 +15,10 @@
   --color-error: #a12c7b;
   --color-success: #437a22;
   --color-warning: #964219;
+  /* Sidebar host/group row — was nearly invisible vs surface (surface vs surface-2) */
+  --color-sidebar-hover: color-mix(in srgb, var(--color-primary) 24%, var(--color-surface));
+  --color-sidebar-selected: color-mix(in srgb, var(--color-primary) 38%, var(--color-surface));
+  --color-sidebar-hover-on-selected: color-mix(in srgb, var(--color-primary) 48%, var(--color-surface));
 }
 
 .dark {
@@ -30,6 +34,9 @@
   --color-error: #d163a7;
   --color-success: #6daa45;
   --color-warning: #bb653b;
+  --color-sidebar-hover: color-mix(in srgb, var(--color-primary) 30%, var(--color-surface));
+  --color-sidebar-selected: color-mix(in srgb, var(--color-primary) 48%, var(--color-surface));
+  --color-sidebar-hover-on-selected: color-mix(in srgb, var(--color-primary) 58%, var(--color-surface));
 }
 
 * {
@@ -71,10 +78,10 @@ body {
 
 /* Selection */
 :root ::selection {
-  background: rgba(1, 105, 111, 0.22);
+  background: rgba(1, 105, 111, 0.38);
 }
 .dark ::selection {
-  background: rgba(79, 152, 163, 0.3);
+  background: rgba(79, 152, 163, 0.45);
 }
 
 /* Focus */

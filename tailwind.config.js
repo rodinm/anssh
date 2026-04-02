@@ -17,6 +17,9 @@ module.exports = {
         error: 'var(--color-error)',
         success: 'var(--color-success)',
         warning: 'var(--color-warning)',
+        'sidebar-hover': 'var(--color-sidebar-hover)',
+        'sidebar-selected': 'var(--color-sidebar-selected)',
+        'sidebar-hover-on-selected': 'var(--color-sidebar-hover-on-selected)',
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

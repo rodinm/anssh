@@ -2,7 +2,7 @@ import { useState } from 'react';
 import {
   Search, Plus, Server, FolderOpen, Key, ChevronRight, ChevronDown,
   Terminal, HardDrive, Edit, Trash2, Download, Upload, FileJson, ListChecks,
-  Sun, Moon, FolderGit2,
+  Sun, Moon, FolderGit2, MoreVertical, Unplug,
 } from 'lucide-react';
 import { useTheme } from '../context/ThemeContext';
 import type { Host, HostGroup, Credential } from '../lib/types';
@@ -21,6 +21,8 @@ interface Props {
   onEditCredential: (cred: Partial<Credential>) => void;
   onRefreshData: () => Promise<void>;
   onOpenDevOps?: () => void;
+  onOpenTabsForHosts: (hosts: Host[], type: 'terminal' | 'sftp') => void;
+  onCloseTabsForHosts: (hosts: Host[]) => void;
 }
 
 export function Sidebar({
@@ -37,11 +39,18 @@ export function Sidebar({
   onEditCredential,
   onRefreshData,
   onOpenDevOps,
+  onOpenTabsForHosts,
+  onCloseTabsForHosts,
 }: Props) {
   const { theme, toggleTheme } = useTheme();
   const [expandedGroups, setExpandedGroups] = useState<Set<string>>(new Set(['__ungrouped__']));
   const [activeSection, setActiveSection] = useState<'hosts' | 'credentials'>('hosts');
   const [contextMenu, setContextMenu] = useState<{ hostId: string; x: number; y: number } | null>(null);
+  const [groupContextMenu, setGroupContextMenu] = useState<
+    | { kind: 'group'; groupId: string; x: number; y: number }
+    | { kind: 'ungrouped'; x: number; y: number }
+    | null
+  >(null);
   const [notification, setNotification] = useState<string | null>(null);
   const [bulkMode, setBulkMode] = useState<'off' | 'hosts' | 'groups'>('off');
   const [selectedHostIds, setSelectedHostIds] = useState<Set<string>>(new Set());
@@ -71,7 +80,26 @@ export function Sidebar({
 
   function handleContextMenu(e: React.MouseEvent, hostId: string) {
     e.preventDefault();
+    setGroupContextMenu(null);
     setContextMenu({ hostId, x: e.clientX, y: e.clientY });
+  }
+
+  function openGroupContextMenu(
+    e: React.MouseEvent,
+    spec: { kind: 'group'; groupId: string } | { kind: 'ungrouped' }
+  ) {
+    e.preventDefault();
+    e.stopPropagation();
+    setContextMenu(null);
+    setGroupContextMenu({ ...spec, x: e.clientX, y: e.clientY });
+  }
+
+  function hostsForGroupActions(groupId: string): Host[] {
+    return hosts.filter((h) => h.groupId === groupId);
+  }
+
+  function hostsForUngroupedActions(): Host[] {
+    return hosts.filter((h) => !h.groupId);
   }
 
   function showNotification(msg: string) {
@@ -251,7 +279,7 @@ export function Sidebar({
           className={`flex-1 h-9 text-xs font-medium transition-colors ${
             activeSection === 'hosts'
               ? 'text-primary border-b-2 border-primary'
-              : 'text-text-muted hover:text-text'
+              : 'text-text-muted hover:text-text hover:bg-sidebar-hover'
           }`}
         >
           Hosts
@@ -265,7 +293,7 @@ export function Sidebar({
           className={`flex-1 h-9 text-xs font-medium transition-colors ${
             activeSection === 'credentials'
               ? 'text-primary border-b-2 border-primary'
-              : 'text-text-muted hover:text-text'
+              : 'text-text-muted hover:text-text hover:bg-sidebar-hover'
           }`}
         >
           Credentials
@@ -371,7 +399,13 @@ export function Sidebar({
             {/* Grouped hosts */}
             {groupedHosts.map(({ group, hosts: groupHosts }) => (
               <div key={group.id} className="mb-0.5">
-                <div className="flex items-center gap-0.5 w-full rounded-md hover:bg-[var(--color-surface-2)] px-1">
+                <div
+                  className={`flex items-center gap-0.5 w-full rounded-md px-1 transition-colors ${
+                    bulkMode === 'groups' && selectedGroupIds.has(group.id)
+                      ? 'bg-sidebar-selected hover:bg-sidebar-hover-on-selected'
+                      : 'hover:bg-sidebar-hover'
+                  }`}
+                >
                   {bulkMode === 'groups' && (
                     <input
                       type="checkbox"
@@ -381,22 +415,35 @@ export function Sidebar({
                       title="Select group"
                     />
                   )}
+                  <div
+                    className="flex-1 flex items-center min-w-0"
+                    onContextMenu={(e) => openGroupContextMenu(e, { kind: 'group', groupId: group.id })}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup(group.id)}
+                      className="flex-1 flex items-center gap-1.5 py-1.5 pr-2 rounded-md text-xs min-w-0 text-left"
+                    >
+                      {expandedGroups.has(group.id) ? (
+                        <ChevronDown className="w-3 h-3 text-text-faint flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3 text-text-faint flex-shrink-0" />
+                      )}
+                      <div
+                        className="w-2 h-2 rounded-full flex-shrink-0"
+                        style={{ backgroundColor: group.color }}
+                      />
+                      <span className="text-text-muted font-medium truncate">{group.name}</span>
+                      <span className="text-text-faint ml-auto text-[10px] flex-shrink-0">{groupHosts.length}</span>
+                    </button>
+                  </div>
                   <button
                     type="button"
-                    onClick={() => toggleGroup(group.id)}
-                    className="flex-1 flex items-center gap-1.5 py-1.5 pr-2 rounded-md text-xs min-w-0"
+                    onClick={(e) => openGroupContextMenu(e, { kind: 'group', groupId: group.id })}
+                    className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-sidebar-hover"
+                    title={`Actions for all hosts in “${group.name}”`}
                   >
-                    {expandedGroups.has(group.id) ? (
-                      <ChevronDown className="w-3 h-3 text-text-faint flex-shrink-0" />
-                    ) : (
-                      <ChevronRight className="w-3 h-3 text-text-faint flex-shrink-0" />
-                    )}
-                    <div
-                      className="w-2 h-2 rounded-full flex-shrink-0"
-                      style={{ backgroundColor: group.color }}
-                    />
-                    <span className="text-text-muted font-medium truncate">{group.name}</span>
-                    <span className="text-text-faint ml-auto text-[10px] flex-shrink-0">{groupHosts.length}</span>
+                    <MoreVertical className="w-3.5 h-3.5" />
                   </button>
                   <button
                     type="button"
@@ -430,19 +477,37 @@ export function Sidebar({
             {/* Ungrouped hosts */}
             {ungroupedHosts.length > 0 && (
               <div className="mb-0.5">
-                <button
-                  onClick={() => toggleGroup('__ungrouped__')}
-                  className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md hover:bg-[var(--color-surface-2)] text-xs"
-                >
-                  {expandedGroups.has('__ungrouped__') ? (
-                    <ChevronDown className="w-3 h-3 text-text-faint" />
-                  ) : (
-                    <ChevronRight className="w-3 h-3 text-text-faint" />
-                  )}
-                  <FolderOpen className="w-3 h-3 text-text-faint" />
-                  <span className="text-text-muted font-medium">Ungrouped</span>
-                  <span className="text-text-faint ml-auto text-[10px]">{ungroupedHosts.length}</span>
-                </button>
+                <div className="flex items-center gap-0.5 w-full rounded-md px-1 transition-colors hover:bg-sidebar-hover">
+                  <div
+                    className="flex-1 flex items-center min-w-0"
+                    onContextMenu={(e) => openGroupContextMenu(e, { kind: 'ungrouped' })}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => toggleGroup('__ungrouped__')}
+                      className="w-full flex items-center gap-1.5 px-2 py-1.5 rounded-md text-xs text-left"
+                    >
+                      {expandedGroups.has('__ungrouped__') ? (
+                        <ChevronDown className="w-3 h-3 text-text-faint flex-shrink-0" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3 text-text-faint flex-shrink-0" />
+                      )}
+                      <FolderOpen className="w-3 h-3 text-text-faint flex-shrink-0" />
+                      <span className="text-text-muted font-medium">Ungrouped</span>
+                      <span className="text-text-faint ml-auto text-[10px] flex-shrink-0">
+                        {ungroupedHosts.length}
+                      </span>
+                    </button>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={(e) => openGroupContextMenu(e, { kind: 'ungrouped' })}
+                    className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-sidebar-hover"
+                    title="Actions for all ungrouped hosts"
+                  >
+                    <MoreVertical className="w-3.5 h-3.5" />
+                  </button>
+                </div>
                 {expandedGroups.has('__ungrouped__') && (
                   <div className="ml-3">
                     {ungroupedHosts.map((host) => (
@@ -488,7 +553,7 @@ export function Sidebar({
               <button
                 key={cred.id}
                 onClick={() => onEditCredential(cred)}
-                className="w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-[var(--color-surface-2)] text-left group"
+                className="w-full flex items-center gap-2 px-2 py-2 rounded-md hover:bg-sidebar-hover text-left group transition-colors"
               >
                 <Key className="w-3.5 h-3.5 text-text-faint flex-shrink-0" />
                 <div className="min-w-0 flex-1">
@@ -562,6 +627,38 @@ export function Sidebar({
         </div>
       )}
 
+      {/* Group / ungrouped bulk actions */}
+      {groupContextMenu && (
+        <GroupContextMenuOverlay
+          x={groupContextMenu.x}
+          y={groupContextMenu.y}
+          title={
+            groupContextMenu.kind === 'group'
+              ? groups.find((g) => g.id === groupContextMenu.groupId)?.name ?? 'Group'
+              : 'Ungrouped'
+          }
+          hosts={
+            groupContextMenu.kind === 'group'
+              ? hostsForGroupActions(groupContextMenu.groupId)
+              : hostsForUngroupedActions()
+          }
+          onClose={() => setGroupContextMenu(null)}
+          onOpenAllTerminal={(list) => {
+            onOpenTabsForHosts(list, 'terminal');
+            setGroupContextMenu(null);
+          }}
+          onOpenAllSftp={(list) => {
+            onOpenTabsForHosts(list, 'sftp');
+            setGroupContextMenu(null);
+          }}
+          onCloseAllTabs={(list) => {
+            onCloseTabsForHosts(list);
+            setGroupContextMenu(null);
+          }}
+          onOpenDevOps={onOpenDevOps}
+        />
+      )}
+
       {/* Context menu overlay */}
       {contextMenu && (
         <ContextMenuOverlay
@@ -627,7 +724,11 @@ function HostItem({
 }) {
   return (
     <div
-      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-[var(--color-surface-2)] group cursor-default"
+      className={`flex items-center gap-2 px-2 py-1.5 rounded-md group cursor-default transition-colors ${
+        bulkHosts && hostSelected
+          ? 'bg-sidebar-selected hover:bg-sidebar-hover-on-selected'
+          : 'hover:bg-sidebar-hover'
+      }`}
       onContextMenu={onContextMenu}
       onDoubleClick={bulkHosts ? undefined : onConnect}
     >
@@ -661,7 +762,7 @@ function HostItem({
             e.stopPropagation();
             onConnect();
           }}
-          className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:bg-bg hover:text-primary"
+          className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:bg-sidebar-hover hover:text-primary"
           title="SSH"
         >
           <Terminal className="w-3 h-3" />
@@ -672,13 +773,96 @@ function HostItem({
             e.stopPropagation();
             onSftp();
           }}
-          className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:bg-bg hover:text-primary"
+          className="w-6 h-6 flex items-center justify-center rounded text-text-muted hover:bg-sidebar-hover hover:text-primary"
           title="SFTP"
         >
           <HardDrive className="w-3 h-3" />
         </button>
       </div>
     </div>
+  );
+}
+
+function GroupContextMenuOverlay({
+  x,
+  y,
+  title,
+  hosts: hostList,
+  onClose,
+  onOpenAllTerminal,
+  onOpenAllSftp,
+  onCloseAllTabs,
+  onOpenDevOps,
+}: {
+  x: number;
+  y: number;
+  title: string;
+  hosts: Host[];
+  onClose: () => void;
+  onOpenAllTerminal: (hosts: Host[]) => void;
+  onOpenAllSftp: (hosts: Host[]) => void;
+  onCloseAllTabs: (hosts: Host[]) => void;
+  onOpenDevOps?: () => void;
+}) {
+  const n = hostList.length;
+  const disabled = n === 0;
+  return (
+    <>
+      <div className="fixed inset-0 z-50" onClick={onClose} />
+      <div
+        className="fixed z-50 w-56 bg-surface border border-border rounded-lg shadow-lg py-1"
+        style={{ left: x, top: y }}
+      >
+        <div className="px-3 py-1.5 text-[10px] text-text-muted border-b border-border truncate" title={title}>
+          <span className="font-medium text-text">{title}</span>
+          <span className="text-text-faint"> · {n} host{n === 1 ? '' : 's'}</span>
+        </div>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onOpenAllTerminal(hostList)}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text hover:bg-[var(--color-surface-2)] disabled:opacity-40 disabled:pointer-events-none text-left"
+        >
+          <Terminal className="w-3.5 h-3.5 flex-shrink-0" />
+          Open SSH for all
+        </button>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onOpenAllSftp(hostList)}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text hover:bg-[var(--color-surface-2)] disabled:opacity-40 disabled:pointer-events-none text-left"
+        >
+          <HardDrive className="w-3.5 h-3.5 flex-shrink-0" />
+          Open SFTP for all
+        </button>
+        <div className="h-px bg-border my-1" />
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => onCloseAllTabs(hostList)}
+          className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text hover:bg-[var(--color-surface-2)] disabled:opacity-40 disabled:pointer-events-none text-left"
+        >
+          <Unplug className="w-3.5 h-3.5 flex-shrink-0" />
+          Close all tabs (group)
+        </button>
+        {onOpenDevOps && (
+          <>
+            <div className="h-px bg-border my-1" />
+            <button
+              type="button"
+              onClick={() => {
+                onOpenDevOps();
+                onClose();
+              }}
+              className="w-full flex items-center gap-2 px-3 py-1.5 text-xs text-text hover:bg-[var(--color-surface-2)] text-left"
+            >
+              <FolderGit2 className="w-3.5 h-3.5 flex-shrink-0" />
+              Ansible+ (git, playbooks…)
+            </button>
+          </>
+        )}
+      </div>
+    </>
   );
 }
 

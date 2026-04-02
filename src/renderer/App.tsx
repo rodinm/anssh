@@ -206,6 +206,16 @@ export default function App() {
     closeTabIds(tabs.map((t) => t.id));
   }, [tabs, closeTabIds]);
 
+  const closeTabsForHostIds = useCallback(
+    (hostIds: string[]) => {
+      if (hostIds.length === 0) return;
+      const idSet = new Set(hostIds);
+      const toClose = tabs.filter((t) => idSet.has(t.hostId)).map((t) => t.id);
+      closeTabIds(toClose);
+    },
+    [tabs, closeTabIds]
+  );
+
   const closeTabsToRight = useCallback(
     (tabId: string) => {
       const idx = tabs.findIndex((t) => t.id === tabId);
@@ -313,6 +323,7 @@ export default function App() {
       onCloseAllTabs={closeAllTabs}
       onCloseTabsToRight={closeTabsToRight}
       onCloseTabsToLeft={closeTabsToLeft}
+      onCloseTabsForHostIds={closeTabsForHostIds}
       onUpdateTab={updateTab}
       onRefreshData={loadData}
     />
