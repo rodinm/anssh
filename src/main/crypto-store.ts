@@ -1,10 +1,22 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
-import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
 
-const pbkdf2Async = promisify(crypto.pbkdf2);
+function pbkdf2Async(
+  password: string,
+  salt: Buffer,
+  iterations: number,
+  keylen: number,
+  digest: string
+): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    crypto.pbkdf2(password, salt, iterations, keylen, digest, (err, derivedKey) => {
+      if (err) reject(err);
+      else resolve(derivedKey);
+    });
+  });
+}
 
 export interface Credential {
   id: string;
@@ -112,30 +124,61 @@ export class CryptoStore {
   }
 
   async createVault(password: string): Promise<boolean> {
-    this.zeroDerivedKey();
-    const salt = crypto.randomBytes(SALT_LENGTH);
-    const key = await this.deriveKey(password, salt);
-    const dataEnc = this.encrypt(JSON.stringify([]), key);
+    try {
+      this.zeroDerivedKey();
+      const salt = crypto.randomBytes(SALT_LENGTH);
+      const key = await this.deriveKey(password, salt);
+      const dataEnc = this.encrypt(JSON.stringify([]), key);
 
-    const vault: VaultData = {
-      salt: salt.toString('hex'),
-      iv: dataEnc.iv,
-      tag: dataEnc.tag,
-      data: dataEnc.encrypted,
-    };
+      const vault: VaultData = {
+        salt: salt.toString('hex'),
+        iv: dataEnc.iv,
+        tag: dataEnc.tag,
+        data: dataEnc.encrypted,
+      };
 
-    atomicWriteJson(this.vaultPath, vault);
-    this.derivedKey = key;
-    this.credentials = [];
-    return true;
+      atomicWriteJson(this.vaultPath, vault);
+      this.derivedKey = key;
+      this.credentials = [];
+      return true;
+    } catch {
+      this.zeroDerivedKey();
+      return false;
+    }
   }
 
   async unlock(password: string): Promise<boolean> {
     if (!this.vaultExists()) return false;
 
-    const vault: VaultData = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8'));
-    const salt = Buffer.from(vault.salt, 'hex');
-    const key = await this.deriveKey(password, salt);
+    let vault: VaultData;
+    try {
+      vault = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8')) as VaultData;
+    } catch {
+      return false;
+    }
+    if (
+      typeof vault.salt !== 'string' ||
+      typeof vault.data !== 'string' ||
+      typeof vault.iv !== 'string' ||
+      typeof vault.tag !== 'string'
+    ) {
+      return false;
+    }
+
+    let salt: Buffer;
+    try {
+      salt = Buffer.from(vault.salt, 'hex');
+    } catch {
+      return false;
+    }
+    if (salt.length === 0) return false;
+
+    let key: Buffer;
+    try {
+      key = await this.deriveKey(password, salt);
+    } catch {
+      return false;
+    }
 
     try {
       const data = this.decrypt(vault.data, key, vault.iv, vault.tag);

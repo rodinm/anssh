@@ -4,7 +4,7 @@ import { useTheme } from '../context/ThemeContext';
 
 interface Props {
   mode: 'create' | 'unlock';
-  onCreate: (password: string) => void;
+  onCreate: (password: string) => Promise<void>;
   onUnlock: (password: string) => Promise<boolean>;
 }
 
@@ -30,12 +30,23 @@ export function VaultScreen({ mode, onCreate, onUnlock }: Props) {
         return;
       }
       setLoading(true);
-      onCreate(password);
+      try {
+        await onCreate(password);
+      } catch {
+        setError('Could not create vault. Check disk permissions or try again.');
+      } finally {
+        setLoading(false);
+      }
     } else {
       setLoading(true);
-      const ok = await onUnlock(password);
-      if (!ok) {
-        setError('Wrong password');
+      try {
+        const ok = await onUnlock(password);
+        if (!ok) {
+          setError('Wrong password or damaged vault file');
+        }
+      } catch {
+        setError('Unlock failed. If the problem persists, check the vault file or logs.');
+      } finally {
         setLoading(false);
       }
     }

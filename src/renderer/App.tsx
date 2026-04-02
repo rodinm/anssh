@@ -97,18 +97,28 @@ export default function App() {
   }
 
   async function handleVaultCreate(password: string) {
-    await window.anssh.vault.create(password);
+    const ok = await window.anssh.vault.create(password);
+    if (!ok) {
+      throw new Error('createVault failed');
+    }
     setVaultState('unlocked');
     await loadData();
   }
 
   async function handleVaultUnlock(password: string): Promise<boolean> {
     const ok = await window.anssh.vault.unlock(password);
-    if (ok) {
-      setVaultState('unlocked');
-      await loadData();
+    if (!ok) {
+      return false;
     }
-    return ok;
+    setVaultState('unlocked');
+    try {
+      await loadData();
+    } catch {
+      await window.anssh.vault.lock();
+      setVaultState('unlock');
+      throw new Error('loadData failed');
+    }
+    return true;
   }
 
   const openTab = useCallback((host: Host, type: 'terminal' | 'sftp') => {
