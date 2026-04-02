@@ -123,15 +123,28 @@ export interface Tab {
   connected: boolean;
 }
 
+/** Result of `vault:bootstrap` (single round-trip at startup). */
+export interface VaultBootstrapResult {
+  exists: boolean;
+  unlocked: boolean;
+  userDataPath: string;
+  vaultIncompatible?: boolean;
+  vaultIncompatibleDetail?: string;
+}
+
 declare global {
   interface Window {
     anssh: {
       vault: {
         exists: () => Promise<boolean>;
-        create: (password: string) => Promise<boolean>;
+        bootstrap: () => Promise<VaultBootstrapResult>;
+        create: (password: string) => Promise<void>;
         unlock: (password: string) => Promise<boolean>;
         lock: () => Promise<boolean>;
         isUnlocked: () => Promise<boolean>;
+      };
+      app: {
+        openUserData: () => Promise<boolean>;
       };
       credentials: {
         list: () => Promise<Omit<Credential, 'password' | 'privateKey' | 'passphrase'>[]>;

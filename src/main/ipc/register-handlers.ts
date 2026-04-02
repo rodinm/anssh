@@ -1,4 +1,4 @@
-import { ipcMain, dialog, shell } from 'electron';
+import { app, ipcMain, dialog, shell } from 'electron';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
@@ -38,10 +38,33 @@ export function registerAllIpc(ctx: MainIpcContext): void {
 
     // --- Vault (master password) ---
     ipcMain.handle(IPC.vault.exists, () => cryptoStore.vaultExists());
+    ipcMain.handle(IPC.vault.bootstrap, () => {
+      const exists = cryptoStore.vaultExists();
+      const unlocked = cryptoStore.isUnlocked();
+      const userDataPath = app.getPath('userData');
+      if (!exists) {
+        return { exists: false, unlocked, userDataPath };
+      }
+      const inspected = cryptoStore.inspectVaultFile();
+      if (!inspected.ok) {
+        return {
+          exists: true,
+          unlocked,
+          vaultIncompatible: true,
+          vaultIncompatibleDetail: inspected.reason,
+          userDataPath,
+        };
+      }
+      return { exists: true, unlocked, userDataPath };
+    });
     ipcMain.handle(IPC.vault.create, (_e, password: string) => cryptoStore.createVault(password));
     ipcMain.handle(IPC.vault.unlock, (_e, password: string) => cryptoStore.unlock(password));
     ipcMain.handle(IPC.vault.lock, () => { cryptoStore.lock(); return true; });
     ipcMain.handle(IPC.vault.isUnlocked, () => cryptoStore.isUnlocked());
+    ipcMain.handle(IPC.app.openUserData, () => {
+      void shell.openPath(app.getPath('userData'));
+      return true;
+    });
 
     // --- Credentials ---
     ipcMain.handle(IPC.credentials.list, () => cryptoStore.listCredentials());

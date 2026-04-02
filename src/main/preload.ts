@@ -4,10 +4,15 @@ import { IPC } from './ipc-channels';
 contextBridge.exposeInMainWorld('anssh', {
   vault: {
     exists: () => ipcRenderer.invoke(IPC.vault.exists),
+    bootstrap: () => ipcRenderer.invoke(IPC.vault.bootstrap),
     create: (password: string) => ipcRenderer.invoke(IPC.vault.create, password),
     unlock: (password: string) => ipcRenderer.invoke(IPC.vault.unlock, password),
     lock: () => ipcRenderer.invoke(IPC.vault.lock),
     isUnlocked: () => ipcRenderer.invoke(IPC.vault.isUnlocked),
+  },
+
+  app: {
+    openUserData: () => ipcRenderer.invoke(IPC.app.openUserData),
   },
 
   credentials: {

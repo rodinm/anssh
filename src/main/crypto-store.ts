@@ -30,8 +30,12 @@ export interface Credential {
   updatedAt: string;
 }
 
+/** Current on-disk format; bump when breaking crypto or JSON shape. */
+export const VAULT_FORMAT_VERSION = 2;
+
 /** On-disk shape; optional check* fields are legacy (pre–vault-only verification). */
 interface VaultData {
+  formatVersion?: number;
   salt: string;
   iv: string;
   tag: string;
@@ -39,6 +43,14 @@ interface VaultData {
   check?: string;
   checkIv?: string;
   checkTag?: string;
+}
+
+export type VaultInspectOk = { ok: true; formatVersion?: number };
+export type VaultInspectBad = { ok: false; reason: string };
+export type VaultInspectResult = VaultInspectOk | VaultInspectBad;
+
+function isHex(s: string): boolean {
+  return s.length > 0 && s.length % 2 === 0 && /^[0-9a-fA-F]+$/.test(s);
 }
 
 const ALGORITHM = 'aes-256-gcm';
@@ -50,6 +62,7 @@ const DIGEST = 'sha512';
 
 function atomicWriteJson(filePath: string, data: unknown): void {
   const dir = path.dirname(filePath);
+  fs.mkdirSync(dir, { recursive: true });
   const json = JSON.stringify(data, null, 2);
   const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${crypto.randomUUID()}.tmp`);
   fs.writeFileSync(tmp, json, 'utf-8');
@@ -83,6 +96,81 @@ export class CryptoStore {
 
   vaultExists(): boolean {
     return fs.existsSync(this.vaultPath);
+  }
+
+  /**
+   * Validates JSON shape and hex fields. Does not verify the password.
+   * Wrong or legacy crypto still looks "ok" here; unlock will fail until the file is replaced.
+   */
+  inspectVaultFile(): VaultInspectResult {
+    if (!this.vaultExists()) {
+      return { ok: false, reason: 'Vault file is missing.' };
+    }
+    let raw: string;
+    try {
+      raw = fs.readFileSync(this.vaultPath, 'utf-8');
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      return { ok: false, reason: `Cannot read vault.json: ${msg}` };
+    }
+    let vault: unknown;
+    try {
+      vault = JSON.parse(raw) as unknown;
+    } catch {
+      return { ok: false, reason: 'vault.json is not valid JSON (file may be corrupt).' };
+    }
+    if (vault === null || typeof vault !== 'object' || Array.isArray(vault)) {
+      return { ok: false, reason: 'vault.json must be a JSON object.' };
+    }
+    const v = vault as Record<string, unknown>;
+    for (const key of ['salt', 'iv', 'tag', 'data'] as const) {
+      const val = v[key];
+      if (typeof val !== 'string' || val.length === 0) {
+        return {
+          ok: false,
+          reason: `Unsupported vault format: missing or invalid "${key}". This file may be from an older app version.`,
+        };
+      }
+      if (!isHex(val)) {
+        return {
+          ok: false,
+          reason: `Unsupported vault format: "${key}" is not hex-encoded. This file may be from an older app version.`,
+        };
+      }
+    }
+    let salt: Buffer;
+    let iv: Buffer;
+    let tag: Buffer;
+    try {
+      salt = Buffer.from(v.salt as string, 'hex');
+      iv = Buffer.from(v.iv as string, 'hex');
+      tag = Buffer.from(v.tag as string, 'hex');
+    } catch {
+      return { ok: false, reason: 'vault.json contains invalid hex fields.' };
+    }
+    if (salt.length < 8) {
+      return {
+        ok: false,
+        reason: 'Unsupported vault: salt is too short. This file may be from an older app version.',
+      };
+    }
+    if (iv.length < 12 || iv.length > 16) {
+      return {
+        ok: false,
+        reason: 'Unsupported vault: IV length is invalid for AES-GCM. This file may be from an older app version.',
+      };
+    }
+    if (tag.length < 12 || tag.length > 16) {
+      return {
+        ok: false,
+        reason: 'Unsupported vault: auth tag length is invalid. This file may be from an older app version.',
+      };
+    }
+    const fv =
+      typeof v.formatVersion === 'number' && Number.isFinite(v.formatVersion)
+        ? v.formatVersion
+        : undefined;
+    return { ok: true, formatVersion: fv };
   }
 
   isUnlocked(): boolean {
@@ -123,14 +211,23 @@ export class CryptoStore {
     }
   }
 
-  async createVault(password: string): Promise<boolean> {
+  async createVault(password: string): Promise<void> {
+    if (this.vaultExists()) {
+      const st = this.inspectVaultFile();
+      if (st.ok) {
+        throw new Error(
+          'A vault already exists. Use Unlock, or back up and remove vault.json to create a new one.'
+        );
+      }
+    }
+    this.zeroDerivedKey();
     try {
-      this.zeroDerivedKey();
       const salt = crypto.randomBytes(SALT_LENGTH);
       const key = await this.deriveKey(password, salt);
       const dataEnc = this.encrypt(JSON.stringify([]), key);
 
       const vault: VaultData = {
+        formatVersion: VAULT_FORMAT_VERSION,
         salt: salt.toString('hex'),
         iv: dataEnc.iv,
         tag: dataEnc.tag,
@@ -140,10 +237,10 @@ export class CryptoStore {
       atomicWriteJson(this.vaultPath, vault);
       this.derivedKey = key;
       this.credentials = [];
-      return true;
-    } catch {
+    } catch (e) {
       this.zeroDerivedKey();
-      return false;
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(msg, { cause: e });
     }
   }
 
@@ -206,6 +303,7 @@ export class CryptoStore {
     const vault = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8')) as VaultData;
     const dataEnc = this.encrypt(JSON.stringify(this.credentials), this.derivedKey);
 
+    vault.formatVersion = VAULT_FORMAT_VERSION;
     vault.iv = dataEnc.iv;
     vault.tag = dataEnc.tag;
     vault.data = dataEnc.encrypted;

@@ -32,8 +32,10 @@ export function VaultScreen({ mode, onCreate, onUnlock }: Props) {
       setLoading(true);
       try {
         await onCreate(password);
-      } catch {
-        setError('Could not create vault. Check disk permissions or try again.');
+      } catch (e) {
+        setError(
+          e instanceof Error ? e.message : 'Could not create vault. Check disk permissions or try again.'
+        );
       } finally {
         setLoading(false);
       }
@@ -143,6 +145,13 @@ export function VaultScreen({ mode, onCreate, onUnlock }: Props) {
           <p className="text-xs text-text-faint text-center mt-4 leading-relaxed">
             The master password encrypts all saved credentials (AES-256-GCM).
             There is no recovery — remember your password.
+          </p>
+        )}
+        {mode === 'unlock' && (
+          <p className="text-xs text-text-faint text-center mt-4 leading-relaxed">
+            After an upgrade, if the password is correct but unlock still fails, your{' '}
+            <span className="font-mono">vault.json</span> may be from an old format. Back it up, remove it from the app
+            data folder, restart, and create a new vault (hosts and groups are kept separately).
           </p>
         )}
       </div>

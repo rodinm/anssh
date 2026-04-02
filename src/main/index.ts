@@ -45,6 +45,9 @@ function createWindow() {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
+      // Default renderer sandbox breaks `require('./ipc-channels')` in preload when packaged (asar);
+      // preload then throws and `window.anssh` is never exposed.
+      sandbox: false,
     },
   });
 
@@ -62,6 +65,11 @@ function createWindow() {
 
 app.whenReady().then(() => {
   const userDataPath = app.getPath('userData');
+  try {
+    fs.mkdirSync(userDataPath, { recursive: true });
+  } catch {
+    /* logged after logger init if needed */
+  }
 
   // Initialize logger
   const log = initLogger(userDataPath);

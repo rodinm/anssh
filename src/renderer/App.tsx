@@ -1,10 +1,16 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { VaultScreen } from './pages/VaultScreen';
+import { VaultIncompatibleScreen } from './pages/VaultIncompatibleScreen';
 import { MainLayout } from './pages/MainLayout';
 import type { Host, HostGroup, Credential, Tab } from './lib/types';
 
 export default function App() {
-  const [vaultState, setVaultState] = useState<'loading' | 'create' | 'unlock' | 'unlocked'>('loading');
+  const [vaultState, setVaultState] = useState<
+    'loading' | 'create' | 'unlock' | 'unlocked' | 'vault-incompatible' | 'vault-error'
+  >('loading');
+  const [vaultIncompatibleDetail, setVaultIncompatibleDetail] = useState('');
+  const [userDataPath, setUserDataPath] = useState('');
+  const [vaultBootstrapError, setVaultBootstrapError] = useState('');
   const [hosts, setHosts] = useState<Host[]>([]);
   const [groups, setGroups] = useState<HostGroup[]>([]);
   const [credentials, setCredentials] = useState<Omit<Credential, 'password' | 'privateKey' | 'passphrase'>[]>([]);
@@ -69,19 +75,31 @@ export default function App() {
   }, []);
 
   async function checkVault() {
+    setVaultBootstrapError('');
     try {
-      const exists = await window.anssh.vault.exists();
-      const unlocked = await window.anssh.vault.isUnlocked();
-      if (unlocked) {
+      if (!window.anssh?.vault?.bootstrap) {
+        throw new Error(
+          'The secure bridge to the app (preload) did not load. Reinstall AnSSH, or run a fresh build — clearing data files does not fix this.'
+        );
+      }
+      const boot = await window.anssh.vault.bootstrap();
+      if (boot.unlocked) {
         setVaultState('unlocked');
         await loadData();
-      } else if (exists) {
-        setVaultState('unlock');
-      } else {
+      } else if (boot.vaultIncompatible) {
+        setVaultIncompatibleDetail(
+          boot.vaultIncompatibleDetail ?? 'This vault file uses an unsupported format.'
+        );
+        setUserDataPath(boot.userDataPath);
+        setVaultState('vault-incompatible');
+      } else if (!boot.exists) {
         setVaultState('create');
+      } else {
+        setVaultState('unlock');
       }
-    } catch {
-      setVaultState('create');
+    } catch (e) {
+      setVaultBootstrapError(e instanceof Error ? e.message : 'Could not initialize vault.');
+      setVaultState('vault-error');
     }
   }
 
@@ -97,10 +115,7 @@ export default function App() {
   }
 
   async function handleVaultCreate(password: string) {
-    const ok = await window.anssh.vault.create(password);
-    if (!ok) {
-      throw new Error('createVault failed');
-    }
+    await window.anssh.vault.create(password);
     setVaultState('unlocked');
     await loadData();
   }
@@ -254,6 +269,31 @@ export default function App() {
         onCreate={handleVaultCreate}
         onUnlock={handleVaultUnlock}
       />
+    );
+  }
+
+  if (vaultState === 'vault-incompatible') {
+    return (
+      <VaultIncompatibleScreen
+        detail={vaultIncompatibleDetail}
+        userDataPath={userDataPath}
+        onRetry={() => void checkVault()}
+      />
+    );
+  }
+
+  if (vaultState === 'vault-error') {
+    return (
+      <div className="flex flex-col items-center justify-center h-full bg-bg gap-4 px-6">
+        <p className="text-error text-sm text-center max-w-md">{vaultBootstrapError}</p>
+        <button
+          type="button"
+          onClick={() => void checkVault()}
+          className="h-10 px-4 rounded-lg bg-primary hover:bg-primary-hover text-white text-sm font-medium"
+        >
+          Retry
+        </button>
+      </div>
     );
   }
 

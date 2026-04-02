@@ -1,6 +1,6 @@
 {
   "name": "anssh",
-  "version": "1.0.0",
+  "version": "1.0.3",
   "description": "Cross-platform SSH client with Ansible inventory sync, SFTP, and host management",
   "author": "AnSSH contributors",
   "license": "MIT",

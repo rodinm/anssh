@@ -4,10 +4,14 @@
 export const IPC = {
   vault: {
     exists: 'vault:exists',
+    bootstrap: 'vault:bootstrap',
     create: 'vault:create',
     unlock: 'vault:unlock',
     lock: 'vault:lock',
     isUnlocked: 'vault:isUnlocked',
+  },
+  app: {
+    openUserData: 'app:openUserData',
   },
   credentials: {
     list: 'credentials:list',
