@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState, useCallback } from 'react';
-import { Terminal as XTerm } from 'xterm';
-import { FitAddon } from 'xterm-addon-fit';
-import { WebLinksAddon } from 'xterm-addon-web-links';
-import { SearchAddon } from 'xterm-addon-search';
+import { Terminal as XTerm } from '@xterm/xterm';
+import { FitAddon } from '@xterm/addon-fit';
+import { WebLinksAddon } from '@xterm/addon-web-links';
+import { SearchAddon } from '@xterm/addon-search';
 import {
   Loader2, RefreshCw, Search, X, ChevronUp, ChevronDown, CaseSensitive, Regex, History,
 } from 'lucide-react';
@@ -11,7 +11,7 @@ import { formatSshError } from '../lib/ssh-errors';
 import { useTheme } from '../context/ThemeContext';
 import { getStoredTheme } from '../lib/theme';
 import { XTERM_THEME_DARK, XTERM_THEME_LIGHT } from '../lib/xterm-themes';
-import 'xterm/css/xterm.css';
+import '@xterm/xterm/css/xterm.css';
 
 interface Props {
   tab: Tab;

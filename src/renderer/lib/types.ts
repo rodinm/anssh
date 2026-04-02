@@ -158,9 +158,9 @@ declare global {
       ssh: {
         connect: (sessionId: string, config: any) => Promise<{ success: boolean; error?: string }>;
         disconnect: (sessionId: string) => Promise<boolean>;
-        write: (sessionId: string, data: string) => void;
+        write: (sessionId: string, data: string | Uint8Array) => void;
         resize: (sessionId: string, cols: number, rows: number) => Promise<void>;
-        onData: (cb: (sessionId: string, data: string) => void) => () => void;
+        onData: (cb: (sessionId: string, data: Uint8Array) => void) => () => void;
         onClose: (cb: (sessionId: string) => void) => () => void;
         onError: (cb: (sessionId: string, error: string) => void) => () => void;
         hasSession: (sessionId: string) => Promise<boolean>;

@@ -1,4 +1,4 @@
-import type { ITheme } from 'xterm';
+import type { ITheme } from '@xterm/xterm';
 
 /** Matches `.dark` in globals.css */
 export const XTERM_THEME_DARK: ITheme = {

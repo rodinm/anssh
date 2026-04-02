@@ -1,7 +1,10 @@
 import crypto from 'crypto';
 import fs from 'fs';
 import path from 'path';
+import { promisify } from 'util';
 import { v4 as uuidv4 } from 'uuid';
+
+const pbkdf2Async = promisify(crypto.pbkdf2);
 
 export interface Credential {
   id: string;
@@ -15,14 +18,15 @@ export interface Credential {
   updatedAt: string;
 }
 
+/** On-disk shape; optional check* fields are legacy (pre–vault-only verification). */
 interface VaultData {
   salt: string;
   iv: string;
   tag: string;
   data: string;
-  check: string; // encrypted known string to verify password
-  checkIv: string;
-  checkTag: string;
+  check?: string;
+  checkIv?: string;
+  checkTag?: string;
 }
 
 const ALGORITHM = 'aes-256-gcm';
@@ -31,7 +35,30 @@ const SALT_LENGTH = 64;
 const IV_LENGTH = 16;
 const ITERATIONS = 100000;
 const DIGEST = 'sha512';
-const CHECK_STRING = 'NEXTERM_VAULT_OK';
+
+function atomicWriteJson(filePath: string, data: unknown): void {
+  const dir = path.dirname(filePath);
+  const json = JSON.stringify(data, null, 2);
+  const tmp = path.join(dir, `.${path.basename(filePath)}.${process.pid}.${crypto.randomUUID()}.tmp`);
+  fs.writeFileSync(tmp, json, 'utf-8');
+  const backupPath = `${filePath}.bak`;
+  try {
+    if (fs.existsSync(filePath)) {
+      fs.copyFileSync(filePath, backupPath);
+    }
+    if (fs.existsSync(filePath) && process.platform === 'win32') {
+      fs.unlinkSync(filePath);
+    }
+    fs.renameSync(tmp, filePath);
+  } catch (e) {
+    try {
+      fs.unlinkSync(tmp);
+    } catch {
+      /* */
+    }
+    throw e;
+  }
+}
 
 export class CryptoStore {
   private vaultPath: string;
@@ -50,8 +77,8 @@ export class CryptoStore {
     return this.derivedKey !== null;
   }
 
-  private deriveKey(password: string, salt: Buffer): Buffer {
-    return crypto.pbkdf2Sync(password, salt, ITERATIONS, KEY_LENGTH, DIGEST);
+  private async deriveKey(password: string, salt: Buffer): Promise<Buffer> {
+    return pbkdf2Async(password, salt, ITERATIONS, KEY_LENGTH, DIGEST) as Promise<Buffer>;
   }
 
   private encrypt(data: string, key: Buffer): { iv: string; tag: string; encrypted: string } {
@@ -77,11 +104,17 @@ export class CryptoStore {
     return decrypted;
   }
 
-  createVault(password: string): boolean {
-    const salt = crypto.randomBytes(SALT_LENGTH);
-    const key = this.deriveKey(password, salt);
+  private zeroDerivedKey(): void {
+    if (this.derivedKey) {
+      this.derivedKey.fill(0);
+      this.derivedKey = null;
+    }
+  }
 
-    const checkEnc = this.encrypt(CHECK_STRING, key);
+  async createVault(password: string): Promise<boolean> {
+    this.zeroDerivedKey();
+    const salt = crypto.randomBytes(SALT_LENGTH);
+    const key = await this.deriveKey(password, salt);
     const dataEnc = this.encrypt(JSON.stringify([]), key);
 
     const vault: VaultData = {
@@ -89,63 +122,61 @@ export class CryptoStore {
       iv: dataEnc.iv,
       tag: dataEnc.tag,
       data: dataEnc.encrypted,
-      check: checkEnc.encrypted,
-      checkIv: checkEnc.iv,
-      checkTag: checkEnc.tag,
     };
 
-    fs.writeFileSync(this.vaultPath, JSON.stringify(vault, null, 2));
+    atomicWriteJson(this.vaultPath, vault);
     this.derivedKey = key;
     this.credentials = [];
     return true;
   }
 
-  unlock(password: string): boolean {
+  async unlock(password: string): Promise<boolean> {
     if (!this.vaultExists()) return false;
 
     const vault: VaultData = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8'));
     const salt = Buffer.from(vault.salt, 'hex');
-    const key = this.deriveKey(password, salt);
-
-    try {
-      const check = this.decrypt(vault.check, key, vault.checkIv, vault.checkTag);
-      if (check !== CHECK_STRING) return false;
-    } catch {
-      return false;
-    }
+    const key = await this.deriveKey(password, salt);
 
     try {
       const data = this.decrypt(vault.data, key, vault.iv, vault.tag);
-      this.credentials = JSON.parse(data);
+      const parsed = JSON.parse(data) as unknown;
+      this.credentials = Array.isArray(parsed) ? (parsed as Credential[]) : [];
     } catch {
-      this.credentials = [];
+      key.fill(0);
+      return false;
     }
 
+    this.zeroDerivedKey();
     this.derivedKey = key;
     return true;
   }
 
   lock(): void {
     this.save();
-    this.derivedKey = null;
+    this.zeroDerivedKey();
     this.credentials = [];
   }
 
   private save(): void {
     if (!this.derivedKey) return;
 
-    const vault: VaultData = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8'));
+    const vault = JSON.parse(fs.readFileSync(this.vaultPath, 'utf-8')) as VaultData;
     const dataEnc = this.encrypt(JSON.stringify(this.credentials), this.derivedKey);
 
     vault.iv = dataEnc.iv;
     vault.tag = dataEnc.tag;
     vault.data = dataEnc.encrypted;
+    delete vault.check;
+    delete vault.checkIv;
+    delete vault.checkTag;
 
-    fs.writeFileSync(this.vaultPath, JSON.stringify(vault, null, 2));
+    atomicWriteJson(this.vaultPath, vault);
   }
 
   listCredentials(): Omit<Credential, 'password' | 'privateKey' | 'passphrase'>[] {
-    return this.credentials.map(({ password, privateKey, passphrase, ...rest }) => rest);
+    return this.credentials.map(
+      ({ password: _pw, privateKey: _pk, passphrase: _pp, ...rest }) => rest
+    );
   }
 
   getCredential(id: string): Credential | null {

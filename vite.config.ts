@@ -20,7 +20,7 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (!id.includes('node_modules')) return;
-          if (id.includes('xterm')) return 'vendor-xterm';
+          if (id.includes('@xterm') || id.includes('xterm')) return 'vendor-xterm';
           if (
             id.includes('node_modules/react-dom') ||
             id.includes('node_modules/react/') ||

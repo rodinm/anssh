@@ -23,7 +23,7 @@ export function parseIniInventory(content: string): ParsedHost[] {
   let inVarsSection = false;
   const groupVars: Record<string, Record<string, string>> = {};
 
-  for (let rawLine of lines) {
+  for (const rawLine of lines) {
     const line = rawLine.replace(/#.*$/, '').trim();
     if (!line) continue;
 

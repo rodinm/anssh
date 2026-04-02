@@ -225,7 +225,7 @@ export class SshManager extends EventEmitter {
 
             stream.on('data', (data: Buffer) => {
               session.lastActivity = Date.now();
-              this.emit('data', sessionId, data.toString('utf-8'));
+              this.emit('data', sessionId, data);
             });
 
             stream.on('close', () => {
@@ -235,7 +235,7 @@ export class SshManager extends EventEmitter {
 
             stream.stderr.on('data', (data: Buffer) => {
               session.lastActivity = Date.now();
-              this.emit('data', sessionId, data.toString('utf-8'));
+              this.emit('data', sessionId, data);
             });
 
             resolve();
@@ -280,11 +280,15 @@ export class SshManager extends EventEmitter {
     });
   }
 
-  write(sessionId: string, data: string): void {
+  write(sessionId: string, data: string | Buffer | Uint8Array): void {
     const session = this.sessions.get(sessionId);
     if (session?.shell) {
       session.lastActivity = Date.now();
-      session.shell.write(data);
+      if (typeof data === 'string') {
+        session.shell.write(data);
+      } else {
+        session.shell.write(Buffer.isBuffer(data) ? data : Buffer.from(data));
+      }
     }
   }
 
@@ -451,9 +455,13 @@ export class SshManager extends EventEmitter {
     }
     if (stats.isDirectory()) {
       const list = await this.sftpList(sessionId, remotePath);
-      for (const f of list) {
-        if (f.name === '.' || f.name === '..') continue;
-        await this.sftpDeleteRecursive(sessionId, joinRemote(remotePath, f.name));
+      const children = list.filter((f) => f.name !== '.' && f.name !== '..');
+      const limit = 10;
+      for (let i = 0; i < children.length; i += limit) {
+        const batch = children.slice(i, i + limit);
+        await Promise.all(
+          batch.map((f) => this.sftpDeleteRecursive(sessionId, joinRemote(remotePath, f.name)))
+        );
       }
       await new Promise<void>((resolve, reject) => {
         sftp.rmdir(remotePath, (err) => (err ? reject(err) : resolve()));
