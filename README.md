@@ -4,11 +4,9 @@
 
 Desktop **SSH / SFTP client** (Electron) for operators who work with **Ansible** and large host lists: encrypted credential vault, jump hosts, SSH tunnels, broadcast to many sessions, and tooling that stays close to your git-based inventory.
 
-**Repository:** [github.com/rodinm/anssh](https://github.com/rodinm/anssh)
-
 ## Downloads
 
-Pre-built installers for macOS (Intel + Apple Silicon) and Windows (x64) are attached to [**GitHub Releases**](https://github.com/rodinm/anssh/releases) when a version tag is pushed (see [Releases](#releases) below).
+Pre-built installers for macOS (Intel + Apple Silicon) and Windows (x64) are on [**GitHub Releases**](https://github.com/rodinm/anssh/releases).
 
 | Platform | Artifacts (typical) |
 |----------|---------------------|
@@ -90,39 +88,6 @@ npm run pack:win     # Windows installers → release/
 ```
 
 Requires **git** on `PATH` for inventory pull. Requires **ansible-playbook** on `PATH` for playbook runs.
-
-## Releases (GitHub Actions)
-
-Version in `package.json` should match the tag (e.g. `1.0.1` and tag `v1.0.1`).
-
-```bash
-# After pushing your code to GitHub (main branch)
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-The **Release** workflow builds macOS on `macos-latest`, Windows on `windows-latest`, then creates a GitHub Release and uploads `.dmg`, `.zip`, `.exe`, and `.blockmap` files (for auto-update).
-
-To publish the first time:
-
-1. Push this repo to [rodinm/anssh](https://github.com/rodinm/anssh) (`main`).
-2. Run:
-
-```bash
-git remote add origin https://github.com/rodinm/anssh.git   # if not set yet
-git push -u origin main
-git tag v1.0.0   # same as "version" in package.json
-git push origin v1.0.0
-```
-
-3. Open **Actions** → wait for **Release** → check **Releases** for assets.
-
-### Кратко по-русски
-
-1. Запушь код в [github.com/rodinm/anssh](https://github.com/rodinm/anssh) (ветка `main`).
-2. При необходимости: `git remote add origin https://github.com/rodinm/anssh.git`, затем `git push -u origin main`.
-3. Поставь тег `v1.0.0` (как версия в `package.json`) и выполни `git push origin v1.0.0`.
-4. Workflow **Release** соберёт Mac и Windows и выложит файлы в раздел **Releases**.
 
 ## Security notes
 
