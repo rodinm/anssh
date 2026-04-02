@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Search, Plus, Server, FolderOpen, Key, ChevronRight, ChevronDown,
   Terminal, HardDrive, Edit, Trash2, Download, Upload, FileJson, ListChecks,
@@ -72,11 +72,47 @@ export function Sidebar({
       h.tags.some((t) => t.toLowerCase().includes(searchQuery.toLowerCase()))
   );
 
-  const groupedHosts = groups.map((g) => ({
-    group: g,
-    hosts: filteredHosts.filter((h) => h.groupId === g.id),
-  }));
   const ungroupedHosts = filteredHosts.filter((h) => !h.groupId);
+  const rootGroups = groups
+    .filter((g) => g.parentId === null)
+    .sort((a, b) => a.order - b.order);
+
+  function childGroupsOf(parentId: string) {
+    return groups
+      .filter((g) => g.parentId === parentId)
+      .sort((a, b) => a.order - b.order);
+  }
+
+  function collectDescendantGroupIds(groupId: string): Set<string> {
+    const ids = new Set<string>([groupId]);
+    const walk = (id: string) => {
+      for (const g of groups) {
+        if (g.parentId === id) {
+          ids.add(g.id);
+          walk(g.id);
+        }
+      }
+    };
+    walk(groupId);
+    return ids;
+  }
+
+  function countHostsInGroupSubtree(groupId: string, hostList: Host[]) {
+    const gids = collectDescendantGroupIds(groupId);
+    return hostList.filter((h) => h.groupId !== null && gids.has(h.groupId)).length;
+  }
+
+  function groupVisibleInSearch(groupId: string): boolean {
+    if (!searchQuery.trim()) return true;
+    const q = searchQuery.toLowerCase();
+    const grp = groups.find((x) => x.id === groupId);
+    if (grp?.name.toLowerCase().includes(q)) return true;
+    if (countHostsInGroupSubtree(groupId, filteredHosts) > 0) return true;
+    for (const c of childGroupsOf(groupId)) {
+      if (groupVisibleInSearch(c.id)) return true;
+    }
+    return false;
+  }
 
   function handleContextMenu(e: React.MouseEvent, hostId: string) {
     e.preventDefault();
@@ -95,7 +131,8 @@ export function Sidebar({
   }
 
   function hostsForGroupActions(groupId: string): Host[] {
-    return hosts.filter((h) => h.groupId === groupId);
+    const gids = collectDescendantGroupIds(groupId);
+    return hosts.filter((h) => h.groupId !== null && gids.has(h.groupId));
   }
 
   function hostsForUngroupedActions(): Host[] {
@@ -228,6 +265,97 @@ export function Sidebar({
     await window.anssh.hosts.delete(host.id);
     await onRefreshData();
     showNotification(`Host “${host.name}” deleted`);
+  }
+
+  function renderGroupNode(group: HostGroup, depth: number): ReactNode {
+    if (!groupVisibleInSearch(group.id)) return null;
+    const directHosts = filteredHosts.filter((h) => h.groupId === group.id);
+    const badgeCount = searchQuery.trim()
+      ? countHostsInGroupSubtree(group.id, filteredHosts)
+      : countHostsInGroupSubtree(group.id, hosts);
+    const kids = childGroupsOf(group.id);
+
+    return (
+      <div key={group.id} className="mb-0.5" style={{ marginLeft: depth === 0 ? 0 : 8 }}>
+        <div
+          className={`flex items-center gap-0.5 w-full rounded-md px-1 transition-colors ${
+            bulkMode === 'groups' && selectedGroupIds.has(group.id)
+              ? 'bg-sidebar-selected hover:bg-sidebar-hover-on-selected'
+              : 'hover:bg-sidebar-hover'
+          }`}
+        >
+          {bulkMode === 'groups' && (
+            <input
+              type="checkbox"
+              className="rounded border-border w-3.5 h-3.5 flex-shrink-0 accent-primary"
+              checked={selectedGroupIds.has(group.id)}
+              onChange={() => toggleGroupSelected(group.id)}
+              title="Select group"
+            />
+          )}
+          <div
+            className="flex-1 flex items-center min-w-0"
+            onContextMenu={(e) => openGroupContextMenu(e, { kind: 'group', groupId: group.id })}
+          >
+            <button
+              type="button"
+              onClick={() => toggleGroup(group.id)}
+              className="flex-1 flex items-center gap-1.5 py-1.5 pr-2 rounded-md text-xs min-w-0 text-left"
+            >
+              {expandedGroups.has(group.id) ? (
+                <ChevronDown className="w-3 h-3 text-text-faint flex-shrink-0" />
+              ) : (
+                <ChevronRight className="w-3 h-3 text-text-faint flex-shrink-0" />
+              )}
+              <div
+                className="w-2 h-2 rounded-full flex-shrink-0"
+                style={{ backgroundColor: group.color }}
+              />
+              <span className="text-text-muted font-medium truncate">{group.name}</span>
+              <span className="text-text-faint ml-auto text-[10px] flex-shrink-0">{badgeCount}</span>
+            </button>
+          </div>
+          <button
+            type="button"
+            onClick={(e) => openGroupContextMenu(e, { kind: 'group', groupId: group.id })}
+            className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-sidebar-hover"
+            title={`Actions for all hosts under “${group.name}”`}
+          >
+            <MoreVertical className="w-3.5 h-3.5" />
+          </button>
+          <button
+            type="button"
+            onClick={(e) => deleteGroupSingle(group, e)}
+            className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md text-error/80 hover:text-error hover:bg-error/10"
+            title={`Delete group “${group.name}”`}
+          >
+            <Trash2 className="w-3.5 h-3.5" />
+          </button>
+        </div>
+        {expandedGroups.has(group.id) && (
+          <div className="min-w-0">
+            {kids.map((c) => renderGroupNode(c, depth + 1))}
+            {directHosts.length > 0 && (
+              <div className="ml-3">
+                {directHosts.map((host) => (
+                  <HostItem
+                    key={host.id}
+                    host={host}
+                    bulkHosts={bulkMode === 'hosts'}
+                    hostSelected={selectedHostIds.has(host.id)}
+                    onToggleHostSelect={() => toggleHostSelected(host.id)}
+                    onConnect={() => onConnectTerminal(host)}
+                    onSftp={() => onConnectSftp(host)}
+                    onDelete={(e) => deleteHostSingle(host, e)}
+                    onContextMenu={(e) => handleContextMenu(e, host.id)}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
   }
 
   return (
@@ -396,83 +524,8 @@ export function Sidebar({
       <div className="flex-1 overflow-y-auto px-1 pb-2">
         {activeSection === 'hosts' && (
           <>
-            {/* Grouped hosts */}
-            {groupedHosts.map(({ group, hosts: groupHosts }) => (
-              <div key={group.id} className="mb-0.5">
-                <div
-                  className={`flex items-center gap-0.5 w-full rounded-md px-1 transition-colors ${
-                    bulkMode === 'groups' && selectedGroupIds.has(group.id)
-                      ? 'bg-sidebar-selected hover:bg-sidebar-hover-on-selected'
-                      : 'hover:bg-sidebar-hover'
-                  }`}
-                >
-                  {bulkMode === 'groups' && (
-                    <input
-                      type="checkbox"
-                      className="rounded border-border w-3.5 h-3.5 flex-shrink-0 accent-primary"
-                      checked={selectedGroupIds.has(group.id)}
-                      onChange={() => toggleGroupSelected(group.id)}
-                      title="Select group"
-                    />
-                  )}
-                  <div
-                    className="flex-1 flex items-center min-w-0"
-                    onContextMenu={(e) => openGroupContextMenu(e, { kind: 'group', groupId: group.id })}
-                  >
-                    <button
-                      type="button"
-                      onClick={() => toggleGroup(group.id)}
-                      className="flex-1 flex items-center gap-1.5 py-1.5 pr-2 rounded-md text-xs min-w-0 text-left"
-                    >
-                      {expandedGroups.has(group.id) ? (
-                        <ChevronDown className="w-3 h-3 text-text-faint flex-shrink-0" />
-                      ) : (
-                        <ChevronRight className="w-3 h-3 text-text-faint flex-shrink-0" />
-                      )}
-                      <div
-                        className="w-2 h-2 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: group.color }}
-                      />
-                      <span className="text-text-muted font-medium truncate">{group.name}</span>
-                      <span className="text-text-faint ml-auto text-[10px] flex-shrink-0">{groupHosts.length}</span>
-                    </button>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={(e) => openGroupContextMenu(e, { kind: 'group', groupId: group.id })}
-                    className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md text-text-muted hover:text-text hover:bg-sidebar-hover"
-                    title={`Actions for all hosts in “${group.name}”`}
-                  >
-                    <MoreVertical className="w-3.5 h-3.5" />
-                  </button>
-                  <button
-                    type="button"
-                    onClick={(e) => deleteGroupSingle(group, e)}
-                    className="w-7 h-7 flex-shrink-0 flex items-center justify-center rounded-md text-error/80 hover:text-error hover:bg-error/10"
-                    title={`Delete group “${group.name}”`}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-                {expandedGroups.has(group.id) && (
-                  <div className="ml-3">
-                    {groupHosts.map((host) => (
-                      <HostItem
-                        key={host.id}
-                        host={host}
-                        bulkHosts={bulkMode === 'hosts'}
-                        hostSelected={selectedHostIds.has(host.id)}
-                        onToggleHostSelect={() => toggleHostSelected(host.id)}
-                        onConnect={() => onConnectTerminal(host)}
-                        onSftp={() => onConnectSftp(host)}
-                        onDelete={(e) => deleteHostSingle(host, e)}
-                        onContextMenu={(e) => handleContextMenu(e, host.id)}
-                      />
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+            {/* Group tree (inventory roots + nested Ansible groups) */}
+            {rootGroups.map((g) => renderGroupNode(g, 0))}
 
             {/* Ungrouped hosts */}
             {ungroupedHosts.length > 0 && (
@@ -869,7 +922,7 @@ function GroupContextMenuOverlay({
 function ContextMenuOverlay({
   x,
   y,
-  host,
+  host: _host,
   onClose,
   onConnectTerminal,
   onConnectSftp,

@@ -10,6 +10,9 @@ export interface ParsedHost {
   user?: string;
   group: string;
   vars: Record<string, string>;
+  /** Set when merging multiple inventory files (git sync) */
+  inventorySourceId?: string;
+  inventorySourceName?: string;
 }
 
 // ────────────────────────────────────────────────

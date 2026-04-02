@@ -2,6 +2,21 @@ import { useState, useEffect } from 'react';
 import { X, Trash2, Server, Plus, Trash, Route } from 'lucide-react';
 import type { Host, HostGroup, Credential, HostTunnelPreset, ConnectionProfile } from '../lib/types';
 
+function flattenGroupsForSelect(groups: HostGroup[]): { id: string; label: string }[] {
+  const childrenOf = (pid: string | null) =>
+    [...groups].filter((g) => (g.parentId ?? null) === pid).sort((a, b) => a.order - b.order);
+  const out: { id: string; label: string }[] = [];
+  const walk = (pid: string | null, depth: number) => {
+    for (const g of childrenOf(pid)) {
+      const pad = depth > 0 ? `${'— '.repeat(depth)}` : '';
+      out.push({ id: g.id, label: `${pad}${g.name}` });
+      walk(g.id, depth + 1);
+    }
+  };
+  walk(null, 0);
+  return out;
+}
+
 interface Props {
   host?: Host;
   groups: HostGroup[];
@@ -170,9 +185,9 @@ export function HostEditor({
               className="w-full h-9 px-3 bg-bg border border-border rounded-lg text-sm text-text focus:outline-none focus:border-primary"
             >
               <option value="">No group</option>
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>
-                  {g.name}
+              {flattenGroupsForSelect(groups).map(({ id, label }) => (
+                <option key={id} value={id}>
+                  {label}
                 </option>
               ))}
             </select>

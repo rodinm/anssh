@@ -3,6 +3,7 @@ import { promisify } from 'util';
 import fs from 'fs';
 import path from 'path';
 import { parseAnsibleInventory, type ParsedHost } from './ansible-parser';
+import type { InventorySource } from './settings-store';
 
 const execFileAsync = promisify(execFile);
 
@@ -37,4 +38,34 @@ export function readInventoryFile(repoPath: string, inventoryRelative: string): 
 
 export function hostKey(hostname: string, port: number): string {
   return `${hostname}:${port}`;
+}
+
+/** Read and merge all configured inventory files; tags each host with source id/name. */
+export function readMergedInventories(
+  repoPath: string,
+  sources: InventorySource[]
+): { ok: true; hosts: ParsedHost[] } | { ok: false; error: string } {
+  if (!sources.length) {
+    return { ok: false, error: 'No inventory sources configured' };
+  }
+  const all: ParsedHost[] = [];
+  const errors: string[] = [];
+  for (const src of sources) {
+    const r = readInventoryFile(repoPath, src.relativePath);
+    if (!r.ok) {
+      errors.push(`${src.name}: ${r.error}`);
+      continue;
+    }
+    for (const h of r.hosts) {
+      all.push({
+        ...h,
+        inventorySourceId: src.id,
+        inventorySourceName: src.name,
+      });
+    }
+  }
+  if (all.length === 0 && errors.length > 0) {
+    return { ok: false, error: errors.join('; ') };
+  }
+  return { ok: true, hosts: all };
 }

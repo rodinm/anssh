@@ -4,7 +4,8 @@ import fs from 'fs';
 import os from 'os';
 import { parseAnsibleInventory } from '../ansible-parser';
 import { getLogger } from '../logger';
-import { gitFetchPull, readInventoryFile } from '../git-inventory';
+import { gitFetchPull, readMergedInventories } from '../git-inventory';
+import { effectiveInventorySources } from '../settings-store';
 import { computeInventoryDiff, applyInventorySync } from '../inventory-diff';
 import { runAnsiblePlaybook, runAnsibleRaw } from '../ansible-runner';
 import { probeMany } from '../health-tcp';
@@ -466,7 +467,8 @@ export function registerAllIpc(ctx: MainIpcContext): void {
     ipcMain.handle(IPC.inventory.diff, async () => {
       const inv = settingsStore.get().inventorySync;
       if (!inv.repoPath) return { success: false, error: 'Repository path not configured' };
-      const read = readInventoryFile(inv.repoPath, inv.inventoryRelativePath);
+      const sources = effectiveInventorySources(inv);
+      const read = readMergedInventories(inv.repoPath, sources);
       if (!read.ok) return { success: false, error: read.error };
       const hosts = hostStore.list();
       const groups = hostStore.listGroups();
@@ -488,7 +490,8 @@ export function registerAllIpc(ctx: MainIpcContext): void {
         opts: { createMissingGroups: boolean; deleteRemovedHosts: boolean }
       ) => {
         const inv = settingsStore.get().inventorySync;
-        const read = readInventoryFile(inv.repoPath, inv.inventoryRelativePath);
+        const sources = effectiveInventorySources(inv);
+        const read = readMergedInventories(inv.repoPath, sources);
         if (!read.ok) return { success: false, error: read.error };
         const result = applyInventorySync(
           hostStore,

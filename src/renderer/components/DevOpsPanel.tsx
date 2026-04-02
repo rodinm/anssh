@@ -44,7 +44,8 @@ export function DevOpsPanel({ hosts, onClose, onRefresh }: Props) {
   async function load() {
     const s = await window.anssh.settings.get();
     setSettings(s);
-    setInvPath(s.inventorySync.inventoryRelativePath);
+    const src0 = s.inventorySync.inventorySources?.[0];
+    setInvPath(src0?.relativePath ?? s.inventorySync.inventoryRelativePath);
     setCwd(s.ansibleBrowseRoot || s.inventorySync.repoPath || '');
     setBrowseRoot(s.ansibleBrowseRoot || s.inventorySync.repoPath || '');
   }
@@ -89,7 +90,11 @@ export function DevOpsPanel({ hosts, onClose, onRefresh }: Props) {
     const lines: string[] = [];
     lines.push(`Parsed hosts: ${d.parsedCount}`);
     lines.push(`Added (${d.added.length}):`);
-    d.added.forEach((a) => lines.push(`  + ${a.name} ${a.hostname}:${a.port} [${a.group}]`));
+    d.added.forEach((a) =>
+      lines.push(
+        `  + ${a.name} ${a.hostname}:${a.port} [${a.group}]${a.inventory ? ` · ${a.inventory}` : ''}`
+      )
+    );
     lines.push(`Removed (${d.removed.length}):`);
     d.removed.forEach((x) => lines.push(`  - ${x.name} (${x.ansibleHostKey})`));
     lines.push(`Updated (${d.updated.length}):`);
@@ -267,17 +272,92 @@ export function DevOpsPanel({ hosts, onClose, onRefresh }: Props) {
                     setSettings({ ...settings, inventorySync: { ...inv, branch: e.target.value } })
                   }
                 />
-                <input
-                  className="h-8 px-2 bg-bg border border-border rounded"
-                  value={inv.inventoryRelativePath}
-                  placeholder="inventory path in repo"
-                  onChange={(e) =>
-                    setSettings({
-                      ...settings,
-                      inventorySync: { ...inv, inventoryRelativePath: e.target.value },
-                    })
-                  }
-                />
+                <div className="space-y-2">
+                  <p className="text-[10px] text-text-muted leading-snug">
+                    Multiple inventory files (Hadoop, Greenplum, …). Each <strong className="text-text">name</strong>{' '}
+                    is a top-level group; Ansible groups nest underneath. Tab titles use the name for hosts imported
+                    from git sync.
+                  </p>
+                  {(inv.inventorySources ?? []).map((src, i) => (
+                    <div key={src.id} className="flex flex-wrap gap-2 items-center">
+                      <input
+                        className="w-36 h-8 px-2 bg-bg border border-border rounded text-xs"
+                        placeholder="Display name"
+                        value={src.name}
+                        onChange={(e) => {
+                          const arr = [...(inv.inventorySources ?? [])];
+                          arr[i] = { ...src, name: e.target.value };
+                          setSettings({
+                            ...settings,
+                            inventorySync: {
+                              ...inv,
+                              inventorySources: arr,
+                              inventoryRelativePath: arr[0]?.relativePath ?? inv.inventoryRelativePath,
+                            },
+                          });
+                        }}
+                      />
+                      <input
+                        className="flex-1 min-w-[160px] h-8 px-2 bg-bg border border-border rounded text-xs font-mono"
+                        placeholder="path/inside/repo.ini"
+                        value={src.relativePath}
+                        onChange={(e) => {
+                          const arr = [...(inv.inventorySources ?? [])];
+                          arr[i] = { ...src, relativePath: e.target.value };
+                          setSettings({
+                            ...settings,
+                            inventorySync: {
+                              ...inv,
+                              inventorySources: arr,
+                              inventoryRelativePath: arr[0]?.relativePath ?? inv.inventoryRelativePath,
+                            },
+                          });
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="h-8 px-2 text-error border border-border rounded disabled:opacity-40"
+                        disabled={(inv.inventorySources?.length ?? 0) <= 1}
+                        title="At least one inventory file required"
+                        onClick={() => {
+                          const arr = (inv.inventorySources ?? []).filter((_, j) => j !== i);
+                          setSettings({
+                            ...settings,
+                            inventorySync: {
+                              ...inv,
+                              inventorySources: arr,
+                              inventoryRelativePath: arr[0]?.relativePath ?? inv.inventoryRelativePath,
+                            },
+                          });
+                        }}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                  <button
+                    type="button"
+                    className="h-8 px-2 border border-dashed border-border rounded text-[10px] text-text-muted flex items-center gap-1"
+                    onClick={() => {
+                      const arr = [...(inv.inventorySources ?? [])];
+                      arr.push({
+                        id: crypto.randomUUID(),
+                        name: 'New inventory',
+                        relativePath: 'inventory/hosts.ini',
+                      });
+                      setSettings({
+                        ...settings,
+                        inventorySync: {
+                          ...inv,
+                          inventorySources: arr,
+                          inventoryRelativePath: arr[0]?.relativePath ?? inv.inventoryRelativePath,
+                        },
+                      });
+                    }}
+                  >
+                    <Plus className="w-3 h-3" /> Add inventory file
+                  </button>
+                </div>
                 <input
                   type="number"
                   min={0}

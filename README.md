@@ -35,7 +35,8 @@ Open **Ansible+** in the sidebar (or the folder-git icon in the tab bar when tab
 ### Git sync & diff
 
 - Point the app at a **local clone** of your inventory repository (path to the repo root).
-- Configure **branch**, path to the **inventory file inside the repo**, and optional **interval** for automatic `git fetch` / `git pull` (merge is not automatic; you review first).
+- Configure **branch**, optional **interval** for automatic `git fetch` / `git pull` (merge is not automatic; you review first).
+- **Multiple inventory files**: add several rows (e.g. Hadoop, Greenplum, Airflow). Each **display name** becomes a **top-level group** in the host list; Ansible groups from that file nest under it. **Preview diff** / **Apply** merge all files. Hosts imported via sync get that name in **SSH/SFTP tab titles**. The first row’s path is also used as the default playbook inventory path unless you override it.
 - **Git pull** updates the clone; **Preview diff** compares the parsed inventory to hosts already in AnSSH:
   - **Added** — new inventory aliases.
   - **Removed** — hosts that were tied to an inventory alias and disappeared from the file.
@@ -47,7 +48,7 @@ Open **Ansible+** in the sidebar (or the folder-git icon in the tab bar when tab
 ### Groups ↔ Ansible
 
 - Each group can have an **Ansible inventory group name** (set when creating a group, or implied when groups are created on apply).
-- Sync maps inventory groups to app groups using `ansibleGroupName` or a matching **group name**.
+- Sync maps inventory groups to app groups using `ansibleGroupName` / path, scoped per **inventory source** when you use multiple files.
 
 ### Tags from `host_vars` / `group_vars`
 

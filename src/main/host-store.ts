@@ -10,6 +10,13 @@ export interface HostGroup {
   order: number;
   /** When set, inventory sync maps this Ansible group name to the app group */
   ansibleGroupName?: string | null;
+  /** Inventory file source (root row uses null ansibleGroupPath) */
+  inventorySourceId?: string | null;
+  /**
+   * Path within that inventory: null = source root; else e.g. "namenodes" or "dc1/workers".
+   * Unique with inventorySourceId for sync matching.
+   */
+  ansibleGroupPath?: string | null;
 }
 
 export interface HostTunnelPreset {
@@ -38,6 +45,10 @@ export interface Host {
   connectionProfileId?: string | null;
   /** Tags derived from host_vars/group_vars (ansible `tags`) */
   ansibleVarTags?: string[];
+  /** Matches InventorySource.id from git sync */
+  inventorySourceId?: string | null;
+  /** Copy of source display name for tab titles */
+  inventoryDisplayName?: string | null;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -66,6 +77,8 @@ export class HostStore {
           ansibleHostKey: h.ansibleHostKey ?? null,
           connectionProfileId: h.connectionProfileId ?? null,
           ansibleVarTags: Array.isArray(h.ansibleVarTags) ? h.ansibleVarTags : [],
+          inventorySourceId: h.inventorySourceId ?? null,
+          inventoryDisplayName: h.inventoryDisplayName ?? null,
         }));
       }
     } catch {
@@ -77,6 +90,8 @@ export class HostStore {
         this.groups = raw.map((g) => ({
           ...g,
           ansibleGroupName: g.ansibleGroupName ?? null,
+          inventorySourceId: g.inventorySourceId ?? null,
+          ansibleGroupPath: g.ansibleGroupPath ?? null,
         }));
       }
     } catch {
@@ -126,6 +141,8 @@ export class HostStore {
       ansibleHostKey: host.ansibleHostKey ?? null,
       connectionProfileId: host.connectionProfileId ?? null,
       ansibleVarTags: host.ansibleVarTags ?? [],
+      inventorySourceId: host.inventorySourceId ?? null,
+      inventoryDisplayName: host.inventoryDisplayName ?? null,
       order: this.hosts.length,
       createdAt: now,
       updatedAt: now,
@@ -195,6 +212,10 @@ export class HostStore {
         ...group,
         ansibleGroupName:
           group.ansibleGroupName !== undefined ? group.ansibleGroupName : existing.ansibleGroupName,
+        inventorySourceId:
+          group.inventorySourceId !== undefined ? group.inventorySourceId : existing.inventorySourceId,
+        ansibleGroupPath:
+          group.ansibleGroupPath !== undefined ? group.ansibleGroupPath : existing.ansibleGroupPath,
       });
       this.saveGroups();
       return existing;
@@ -206,6 +227,8 @@ export class HostStore {
       color: group.color || '#4f98a3',
       parentId: group.parentId || null,
       ansibleGroupName: group.ansibleGroupName ?? null,
+      inventorySourceId: group.inventorySourceId ?? null,
+      ansibleGroupPath: group.ansibleGroupPath ?? null,
       order: this.groups.length,
     };
 
@@ -217,14 +240,16 @@ export class HostStore {
   deleteGroup(id: string): boolean {
     const idx = this.groups.findIndex((g) => g.id === id);
     if (idx === -1) return false;
+    const deleted = this.groups[idx];
     this.groups.splice(idx, 1);
     // Move hosts from deleted group to ungrouped
     this.hosts.forEach((h) => {
       if (h.groupId === id) h.groupId = null;
     });
-    // Move child groups to root
+    // Reparent child groups to deleted group's parent (preserves subtree shape)
+    const parentOfDeleted = deleted.parentId;
     this.groups.forEach((g) => {
-      if (g.parentId === id) g.parentId = null;
+      if (g.parentId === id) g.parentId = parentOfDeleted;
     });
     this.saveGroups();
     this.saveHosts();

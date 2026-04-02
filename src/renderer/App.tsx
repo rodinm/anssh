@@ -138,12 +138,15 @@ export default function App() {
 
   const openTab = useCallback((host: Host, type: 'terminal' | 'sftp') => {
     const id = `${host.id}-${type}-${Date.now()}`;
+    const kind = type === 'terminal' ? 'SSH' : 'SFTP';
+    const inv = host.inventoryDisplayName?.trim();
+    const title = inv ? `${inv} · ${host.name} (${kind})` : `${host.name} (${kind})`;
     const tab: Tab = {
       id,
       type,
       hostId: host.id,
       hostName: host.name,
-      title: `${host.name} (${type === 'terminal' ? 'SSH' : 'SFTP'})`,
+      title,
       connected: false,
     };
     setTabs((prev) => [...prev, tab]);

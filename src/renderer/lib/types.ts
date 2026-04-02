@@ -20,6 +20,8 @@ export interface Host {
   ansibleHostKey?: string | null;
   connectionProfileId?: string | null;
   ansibleVarTags?: string[];
+  inventorySourceId?: string | null;
+  inventoryDisplayName?: string | null;
   order: number;
   createdAt: string;
   updatedAt: string;
@@ -31,7 +33,15 @@ export interface HostGroup {
   color: string;
   parentId: string | null;
   ansibleGroupName?: string | null;
+  inventorySourceId?: string | null;
+  ansibleGroupPath?: string | null;
   order: number;
+}
+
+export interface InventorySource {
+  id: string;
+  name: string;
+  relativePath: string;
 }
 
 export interface InventorySyncConfig {
@@ -39,6 +49,7 @@ export interface InventorySyncConfig {
   repoPath: string;
   branch: string;
   inventoryRelativePath: string;
+  inventorySources?: InventorySource[];
   intervalMinutes: number;
   hostVarsRelative: string;
   groupVarsRelative: string;
@@ -233,7 +244,14 @@ declare global {
           success: boolean;
           error?: string;
           diff?: {
-            added: { name: string; hostname: string; port: number; group: string; varTags: string[] }[];
+            added: {
+              name: string;
+              hostname: string;
+              port: number;
+              group: string;
+              varTags: string[];
+              inventory?: string;
+            }[];
             removed: { id: string; name: string; ansibleHostKey: string }[];
             updated: { id: string; name: string; changes: string[] }[];
             parsedCount: number;
