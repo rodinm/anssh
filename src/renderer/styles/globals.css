@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --color-bg: #f7f6f2;
+  --color-surface: #f9f8f5;
+  --color-surface-2: #fbfbf9;
+  --color-border: #d4d1ca;
+  --color-text: #28251d;
+  --color-text-muted: #7a7974;
+  --color-text-faint: #bab9b4;
+  --color-primary: #01696f;
+  --color-primary-hover: #0c4e54;
+  --color-error: #a12c7b;
+  --color-success: #437a22;
+  --color-warning: #964219;
+}
+
+.dark {
+  --color-bg: #111110;
+  --color-surface: #1a1918;
+  --color-surface-2: #222120;
+  --color-border: #333231;
+  --color-text: #cdccca;
+  --color-text-muted: #797876;
+  --color-text-faint: #5a5957;
+  --color-primary: #4f98a3;
+  --color-primary-hover: #227f8b;
+  --color-error: #d163a7;
+  --color-success: #6daa45;
+  --color-warning: #bb653b;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body, #root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: 'Inter', system-ui, sans-serif;
+  font-size: 14px;
+  color: var(--color-text);
+  background-color: var(--color-bg);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover { background: var(--color-text-muted); }
+
+/* xterm overrides */
+.xterm { padding: 8px; }
+.xterm-viewport::-webkit-scrollbar { width: 6px; }
+.xterm-viewport::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+/* Selection */
+:root ::selection {
+  background: rgba(1, 105, 111, 0.22);
+}
+.dark ::selection {
+  background: rgba(79, 152, 163, 0.3);
+}
+
+/* Focus */
+:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Transitions */
+button, a, input, select, textarea {
+  transition: background-color 180ms ease, border-color 180ms ease, color 180ms ease, box-shadow 180ms ease;
+}
+
+/* Drag region for titlebar */
+.drag-region {
+  -webkit-app-region: drag;
+}
+
+.no-drag {
+  -webkit-app-region: no-drag;
+}

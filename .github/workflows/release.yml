@@ -1,0 +1,83 @@
+# Publishes installers to GitHub Releases when you push a tag like v1.0.0
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+      - 'v*.*'
+
+permissions:
+  contents: write
+
+env:
+  CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+
+jobs:
+  build-mac:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --mac --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mac-installers
+          if-no-files-found: error
+          path: |
+            release/*.dmg
+            release/*mac.zip
+            release/*.dmg.blockmap
+            release/*mac.zip.blockmap
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --win --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: win-installers
+          if-no-files-found: error
+          path: |
+            release/*.exe
+            release/*.exe.blockmap
+
+  publish:
+    needs: [build-mac, build-win]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Stage release files
+        run: |
+          mkdir -p upload
+          find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.zip' -o -name '*.blockmap' \) -exec cp -f {} upload/ \;
+          ls -la upload
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          draft: false
+          generate_release_notes: true
+          files: upload/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
