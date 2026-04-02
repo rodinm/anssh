@@ -60,8 +60,33 @@ jobs:
             release/*.exe
             release/*.exe.blockmap
 
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install packaging tools (rpm for .rpm on Ubuntu)
+        run: sudo apt-get update && sudo apt-get install -y rpm
+
+      - run: npm ci
+      - run: npm run build
+      - run: npx electron-builder --linux deb rpm --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: linux-packages
+          if-no-files-found: error
+          path: |
+            release/*.deb
+            release/*.rpm
+
   publish:
-    needs: [build-mac, build-win]
+    needs: [build-mac, build-win, build-linux]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/download-artifact@v4
@@ -71,7 +96,7 @@ jobs:
       - name: Stage release files
         run: |
           mkdir -p upload
-          find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.zip' -o -name '*.blockmap' \) -exec cp -f {} upload/ \;
+          find artifacts -type f \( -name '*.dmg' -o -name '*.exe' -o -name '*.zip' -o -name '*.blockmap' -o -name '*.deb' -o -name '*.rpm' \) -exec cp -f {} upload/ \;
           ls -la upload
 
       - uses: softprops/action-gh-release@v2

@@ -6,14 +6,15 @@ Desktop **SSH / SFTP client** (Electron) for operators who work with **Ansible**
 
 ## Downloads
 
-Pre-built installers for macOS (Intel + Apple Silicon) and Windows (x64) are on [**GitHub Releases**](https://github.com/rodinm/anssh/releases).
+Pre-built packages for macOS (Intel + Apple Silicon), Windows (x64), and Linux (x64 `.deb` / `.rpm`) are on [**GitHub Releases**](https://github.com/rodinm/anssh/releases).
 
 | Platform | Artifacts (typical) |
 |----------|---------------------|
 | macOS | `.dmg` (x64, arm64), `.zip` |
 | Windows | NSIS `Setup` `.exe`, portable `.exe` |
+| Linux | `.deb`, `.rpm` (x64) |
 
-macOS and Windows builds are **not code-signed** in the default workflow; Gatekeeper / SmartScreen may show warnings. For distribution outside your team, set up signing and notarization (macOS) and a code signing cert (Windows).
+macOS and Windows builds are **not code-signed** in the default workflow; Gatekeeper / SmartScreen may show warnings. Linux packages are unsigned as built in CI. For distribution outside your team, set up signing and notarization (macOS), a code signing cert (Windows), and your distro’s usual package signing if you publish to a repository.
 
 ## Features
 
@@ -85,9 +86,10 @@ npm run build        # Icons + main + renderer
 npm start            # Run Electron on dist
 npm run pack:mac     # macOS installers → release/
 npm run pack:win     # Windows installers → release/
+npm run pack:linux   # .deb + .rpm → release/ (needs Linux + `rpm` for .rpm, e.g. Ubuntu)
 ```
 
-Requires **git** on `PATH` for inventory pull. Requires **ansible-playbook** on `PATH` for playbook runs.
+Requires **git** on `PATH` for inventory pull. Requires **ansible-playbook** on `PATH` for playbook runs. Linux packages are not built cross‑platform from macOS/Windows; use a Linux machine or the **Release** GitHub Actions workflow.
 
 ## Security notes
 

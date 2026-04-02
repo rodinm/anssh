@@ -4,13 +4,13 @@
   "description": "Cross-platform SSH client with Ansible inventory sync, SFTP, and host management",
   "author": "AnSSH contributors",
   "license": "MIT",
-  "homepage": "https://github.com/YOUR_GITHUB_USER/anssh#readme",
+  "homepage": "https://github.com/rodinm/anssh#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/YOUR_GITHUB_USER/anssh.git"
+    "url": "git+https://github.com/rodinm/anssh.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_GITHUB_USER/anssh/issues"
+    "url": "https://github.com/rodinm/anssh/issues"
   },
   "main": "dist/main/index.js",
   "scripts": {
@@ -123,19 +123,20 @@
     "linux": {
       "target": [
         {
-          "target": "AppImage",
+          "target": "deb",
           "arch": [
             "x64"
           ]
         },
         {
-          "target": "tar.gz",
+          "target": "rpm",
           "arch": [
             "x64"
           ]
         }
       ],
-      "category": "Development"
+      "category": "Development",
+      "maintainer": "AnSSH contributors"
     }
   }
 }
